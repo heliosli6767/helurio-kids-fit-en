@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="HELURIO Kids Fit Studio — voice-controlled virtual try-on for kids." />
+    <meta name="theme-color" content="#f2efe8" />
+    <title>HELURIO Kids Fit Studio</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23181513'/%3E%3Cpath d='M10 8h3v6h6V8h3v16h-3v-7h-6v7h-3z' fill='%23f5f1e8'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="HELURIO home">
+          <span class="brand-mark" aria-hidden="true">H</span>
+          <span>
+            <strong>HELURIO</strong>
+            <small>KIDS FIT STUDIO</small>
+          </span>
+        </a>
+        <div class="top-actions">
+          <span class="system-pill" id="systemState"><i></i> Ready to start</span>
+          <button class="icon-button" id="settingsButton" type="button" aria-label="Connection settings" title="Connection settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 10 3.01V3h4v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="studio-panel" aria-label="Live virtual try-on">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">HELURIO FIT</span>
+              <h1>Say it. Wear it.</h1>
+            </div>
+            <button class="secondary-button" id="cameraButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 10l4.5-2.5v9L15 14M5 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/></svg>
+              Open camera
+            </button>
+          </div>
+
+          <div class="mirror-frame" id="mirrorFrame">
+            <video id="outputVideo" autoplay playsinline muted></video>
+            <video id="inputVideo" autoplay playsinline muted></video>
+            <div class="camera-empty" id="cameraEmpty">
+              <div class="camera-orbit">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 10l4.5-2.5v9L15 14M5 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/></svg>
+              </div>
+              <strong>Your mirror is ready</strong>
+              <span>Allow camera access and stand in the center</span>
+            </div>
+            <div class="live-badge"><i></i> <span id="liveLabel">PREVIEW</span></div>
+            <div class="look-summary" id="lookSummary">
+              <span>Current outfit</span>
+              <strong id="lookText">No clothes selected yet</strong>
+            </div>
+          </div>
+
+          <div class="voice-console">
+            <button class="mic-button" id="micButton" type="button" aria-label="Start continuous voice selection" title="Start listening">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6"/></svg>
+            </button>
+            <div class="voice-copy">
+              <label for="commandInput">Voice selection</label>
+              <input id="commandInput" type="text" autocomplete="off" placeholder="Try: A yellow T-shirt and black pants" />
+              <span id="voiceHint">Click once to listen continuously. Click again to stop.</span>
+            </div>
+            <button class="send-button" id="sendButton" type="button">Apply</button>
+          </div>
+        </section>
+
+        <aside class="wardrobe-panel" aria-label="Kids wardrobe">
+          <div class="wardrobe-heading">
+            <div>
+              <span class="eyebrow">10 pieces</span>
+              <h2>Choose your outfit</h2>
+            </div>
+            <span class="startlux-badge">STARTLUX</span>
+          </div>
+          <div class="catalog-grid" id="catalogGrid" aria-live="polite"></div>
+          <div class="decision-strip">
+            <div class="decision-icon">S</div>
+            <div>
+              <strong id="decisionTitle">STARTLUX is ready</strong>
+              <span id="decisionDetail">Voice commands are sent to your local model</span>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <dialog id="settingsDialog">
+      <form method="dialog" class="settings-card" id="settingsForm">
+        <div class="modal-heading">
+          <div><span class="eyebrow">CONNECTIONS</span><h2>Connection settings</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Close settings" type="submit">×</button>
+        </div>
+        <label>STARTLUX endpoint<input id="startluxEndpoint" type="url" value="http://127.0.0.1:8000/v1/systemone" required /></label>
+        <label>STARTLUX model<input id="startluxModel" type="text" value="startlux" required /></label>
+        <label>Local speech transcription endpoint<input id="speechEndpoint" type="url" value="http://127.0.0.1:8001/v1/audio/transcriptions" /></label>
+        <label>Lucy API Key<input id="lucyKey" type="password" placeholder="Stored only for this browser session" /></label>
+        <p>If browser speech recognition is unavailable, recordings are sent to your local OpenAI-compatible transcription endpoint. Both local services must allow this page origin through CORS.</p>
+        <div class="modal-actions">
+          <button class="secondary-button" value="cancel" type="submit">Cancel</button>
+          <button class="primary-button" id="saveSettings" value="default" type="submit">Save settings</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
