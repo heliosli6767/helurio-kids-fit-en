@@ -223,9 +223,18 @@ async function decideWithStartlux(command) {
   } finally { setBusy(false); }
 }
 
-async function composeOutfitReference() {
-  const selected = [state.selected.top, state.selected.bottom].filter(Boolean);
+async function composeOutfitReference(changedTypes = state.lastChangedTypes) {
+  const changed = new Set(changedTypes);
+  const selected = [state.selected.top, state.selected.bottom]
+    .filter(item => item && (!changed.size || changed.has(item.type)));
   if (!selected.length) return null;
+  if (selected.length === 1) {
+    const item = selected[0];
+    const response = await fetch(item.image);
+    if (!response.ok) throw new Error(`Could not load ${item.name}`);
+    const blob = await response.blob();
+    return new File([blob], `${item.id.toLowerCase()}.png`, { type: blob.type || "image/png" });
+  }
   const canvas = document.createElement("canvas");
   canvas.width = 1024; canvas.height = selected.length === 2 ? 1536 : 1024;
   const ctx = canvas.getContext("2d");
@@ -246,24 +255,17 @@ async function composeOutfitReference() {
 function buildLucyOutfitPrompt(changedTypes = state.lastChangedTypes) {
   const topChanged = changedTypes.includes("top");
   const bottomChanged = changedTypes.includes("bottom");
-  const instructions = [];
-  if (topChanged && state.selected.top) instructions.push(`Substitute only the current top with ${state.selected.top.prompt}. Apply the top reference only to the upper body.`);
-  if (bottomChanged && state.selected.bottom) instructions.push(`Substitute only the current pants with ${state.selected.bottom.prompt}. Apply the pants reference only to the lower body.`);
-  if (!bottomChanged) {
-    instructions.push(state.selected.bottom
-      ? `Keep the previously selected ${state.selected.bottom.prompt} exactly unchanged, including color and pattern.`
-      : "Keep the person's existing pants, shorts or skirt exactly unchanged, including the original color, pattern, material and shape.");
-    instructions.push("Do not recolor the pants to match the top. Do not extend the top's color or pattern onto the lower body.");
+  const preservePerson = "Preserve the exact face, hair length, hairstyle, hairline, hair part, hair color, body shape, hands, pose, background, camera framing and lighting.";
+  if (topChanged && !bottomChanged && state.selected.top) {
+    return `Substitute only the current top with ${state.selected.top.prompt}. Limit the edit to the torso below the neckline and above the waist. Keep all pants and lower-body clothing exactly unchanged. Do not alter or extend the garment into the neck, head or hair. ${preservePerson}`;
   }
-  if (!topChanged) {
-    instructions.push(state.selected.top
-      ? `Keep the previously selected ${state.selected.top.prompt} exactly unchanged, including color and pattern.`
-      : "Keep the person's existing top exactly unchanged, including the original color, pattern, material and shape.");
-    instructions.push("Do not recolor the top to match the pants. Do not extend the pants' color or pattern onto the upper body.");
+  if (bottomChanged && !topChanged && state.selected.bottom) {
+    return `Substitute only the current bottoms with ${state.selected.bottom.prompt}. Limit the edit to the lower body below the waist. Keep the current top and all upper-body clothing exactly unchanged. Do not alter the neck, head or hair. ${preservePerson}`;
   }
-  if (topChanged && bottomChanged) instructions.push("Treat the top and pants as separate garments. Keep each garment's specified color and pattern independent; do not create a single-color matching set unless both references specify it.");
-  instructions.push("Preserve the same person's identity, face, body shape, pose, camera framing, lighting and background. Change only the explicitly requested garment regions.");
-  return instructions.join(" ");
+  if (topChanged && bottomChanged && state.selected.top && state.selected.bottom) {
+    return `Substitute the current top with ${state.selected.top.prompt}, and the current bottoms with ${state.selected.bottom.prompt}. Keep the two garments separate with their own colors and patterns. Do not alter the neck, head or hair. ${preservePerson}`;
+  }
+  return `Keep the current clothing unchanged. Do not alter the neck, head or hair. ${preservePerson}`;
 }
 
 async function applyLucyLook(changedTypes = state.lastChangedTypes) {
@@ -275,16 +277,16 @@ async function applyLucyLook(changedTypes = state.lastChangedTypes) {
     if (elements.tryonStatus.dataset.kind !== "error") setTryonStatus("Camera preview only", "Lucy is not connected. Check your key, then click Open camera to connect.");
     showToast("Outfit selected, but Lucy is not connected."); return;
   }
-  const reference = await composeOutfitReference();
+  const reference = await composeOutfitReference(changedTypes);
   const prompt = buildLucyOutfitPrompt(changedTypes);
   try {
     elements.liveLabel.textContent = "LUCY APPLYING";
     setTryonStatus("Sending outfit to Lucy", "STARTLUX selected the garments. Waiting for Lucy to acknowledge the reference image.");
-    await state.lucyClient.set({
-      image: reference,
-      prompt,
-      enhance: false
-    });
+    if (typeof state.lucyClient.setImage === "function") {
+      await state.lucyClient.setImage(reference, { prompt, enhance: false });
+    } else {
+      await state.lucyClient.set({ image: reference, prompt, enhance: false });
+    }
     elements.liveLabel.textContent = "LUCY LIVE";
     setTryonStatus("Outfit request accepted", "Lucy acknowledged the garment image. This confirms the request, not the visual result. Check the live video.", "success");
     showToast("Lucy is updating your outfit");
