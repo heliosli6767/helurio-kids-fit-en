@@ -57,6 +57,11 @@
             </div>
           </div>
 
+          <div class="tryon-status" id="tryonStatus" role="status" aria-live="polite" data-kind="info">
+            <strong id="tryonTitle">Lucy is not connected</strong>
+            <p id="tryonDetail">Open the camera and add your Lucy API key to enable virtual try-on. Selecting a garment alone does not start Lucy.</p>
+          </div>
+
           <div class="voice-console">
             <button class="mic-button" id="micButton" type="button" aria-label="Start continuous voice selection" title="Start listening">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6"/></svg>
@@ -73,7 +78,7 @@
         <aside class="wardrobe-panel" aria-label="Kids wardrobe">
           <div class="wardrobe-heading">
             <div>
-              <span class="eyebrow">10 pieces</span>
+              <span class="eyebrow" id="wardrobeCount">16 pieces</span>
               <h2>Choose your outfit</h2>
             </div>
             <span class="startlux-badge">STARTLUX</span>

@@ -8,7 +8,13 @@ const wardrobe = [
   { id: "BOTTOM-02", type: "bottom", color: "white", colorLabel: "White", name: "Snow White Cargo Pants", style: "Lightweight cargo", image: "./assets/wardrobe/bottom-02-white-cargo.png", prompt: "crisp white lightweight cargo pants" },
   { id: "BOTTOM-03", type: "bottom", color: "black", colorLabel: "Black", name: "Black Straight-leg Jeans", style: "Soft denim", image: "./assets/wardrobe/bottom-03-black-jeans.png", prompt: "black straight-leg denim jeans" },
   { id: "BOTTOM-04", type: "bottom", color: "green", colorLabel: "Forest green", name: "Forest Green Chinos", style: "Cotton twill", image: "./assets/wardrobe/bottom-04-green-chino.png", prompt: "forest-green straight-leg chino pants" },
-  { id: "BOTTOM-05", type: "bottom", color: "yellow", colorLabel: "Sunshine yellow", name: "Sunny Yellow Track Pants", style: "White side stripe", image: "./assets/wardrobe/bottom-05-yellow-track.png", prompt: "sunny yellow relaxed track pants with a white side stripe" }
+  { id: "BOTTOM-05", type: "bottom", color: "yellow", colorLabel: "Sunshine yellow", name: "Sunny Yellow Track Pants", style: "White side stripe", image: "./assets/wardrobe/bottom-05-yellow-track.png", prompt: "sunny yellow relaxed track pants with a white side stripe" },
+  { id: "TOP-06", type: "top", color: "blue-white", colorLabel: "Navy & white", name: "Blue Striped T-shirt", style: "Sailor stripes", image: "./assets/wardrobe/top-06-blue-striped.png", prompt: "a cotton crewneck T-shirt with navy-blue and white horizontal sailor stripes" },
+  { id: "TOP-07", type: "top", color: "purple", colorLabel: "Lavender", name: "Lavender Star T-shirt", style: "White star print", image: "./assets/wardrobe/top-07-lavender-stars.png", prompt: "a lavender purple cotton crewneck T-shirt with small repeating white stars" },
+  { id: "TOP-08", type: "top", color: "orange", colorLabel: "Orange & green", name: "Orange Dinosaur T-shirt", style: "Dinosaur graphic", image: "./assets/wardrobe/top-08-orange-dinosaur.png", prompt: "a warm orange cotton T-shirt with a single friendly forest-green dinosaur graphic on the chest" },
+  { id: "BOTTOM-06", type: "bottom", color: "blue", colorLabel: "Sky blue", name: "Light Blue Jeans", style: "Straight-leg denim", image: "./assets/wardrobe/bottom-06-blue-denim.png", prompt: "sky-blue full-length straight-leg denim jeans" },
+  { id: "BOTTOM-07", type: "bottom", color: "beige-brown", colorLabel: "Beige & brown", name: "Beige Check Pants", style: "Gingham pattern", image: "./assets/wardrobe/bottom-07-beige-check.png", prompt: "full-length beige and brown gingham check cotton trousers with an elastic waistband" },
+  { id: "BOTTOM-08", type: "bottom", color: "navy", colorLabel: "Navy & white", name: "Navy Star Joggers", style: "White star print", image: "./assets/wardrobe/bottom-08-navy-stars.png", prompt: "navy-blue full-length cotton jogger pants with a small repeating white star pattern" }
 ];
 
 const state = {
@@ -44,11 +50,13 @@ const elements = {
   settingsButton: $("#settingsButton"), settingsDialog: $("#settingsDialog"), settingsForm: $("#settingsForm"),
   endpoint: $("#startluxEndpoint"), model: $("#startluxModel"), speechEndpoint: $("#speechEndpoint"), lucyKey: $("#lucyKey"),
   systemState: $("#systemState"), liveLabel: $("#liveLabel"), voiceHint: $("#voiceHint"),
-  decisionTitle: $("#decisionTitle"), decisionDetail: $("#decisionDetail"), lookText: $("#lookText"), toast: $("#toast")
+  decisionTitle: $("#decisionTitle"), decisionDetail: $("#decisionDetail"), lookText: $("#lookText"), toast: $("#toast"),
+  tryonTitle: $("#tryonTitle"), tryonDetail: $("#tryonDetail"), tryonStatus: $("#tryonStatus"), wardrobeCount: $("#wardrobeCount")
 };
 
 function renderWardrobe() {
-  const visible = wardrobe;
+  const visible = [...wardrobe].sort((a, b) => a.type === b.type ? a.id.localeCompare(b.id) : a.type === "top" ? -1 : 1);
+  elements.wardrobeCount.textContent = `${wardrobe.length} pieces`;
   elements.grid.innerHTML = visible.map(item => `
     <button class="garment-card ${state.selected[item.type]?.id === item.id ? "selected" : ""}" type="button" data-id="${item.id}" aria-label="Try on ${item.name}">
       <span class="item-id">${item.id}</span><span class="checkmark">✓</span>
@@ -63,6 +71,32 @@ function showToast(message) {
   elements.toast.classList.add("show");
   clearTimeout(showToast.timer);
   showToast.timer = setTimeout(() => elements.toast.classList.remove("show"), 2800);
+}
+
+function setTryonStatus(title, detail, kind = "info") {
+  elements.tryonTitle.textContent = title;
+  elements.tryonDetail.textContent = detail;
+  elements.tryonStatus.dataset.kind = kind;
+}
+
+function safeLucyError(error) {
+  let message = String(error?.message || error?.reason || error || "Unknown error");
+  if (state.settings.lucyKey) message = message.split(state.settings.lucyKey).join("[redacted]");
+  return message.replace(/([?&](?:api_key|token)=)[^&\s]+/gi, "$1[redacted]");
+}
+
+function reportLucyError(error, stage) {
+  const message = safeLucyError(error);
+  const code = String(error?.code || "");
+  let detail = `${code ? `${code}: ` : ""}${message}`;
+  if (/invalid.*key|unauthori[sz]ed|authentication|401|token.expired/i.test(`${code} ${message}`)) {
+    detail += " Check the key or token in Connection settings.";
+  } else if (/credit|balance|payment|billing|quota|402/i.test(`${code} ${message}`)) {
+    detail += " Check the Decart account credits and usage limits; generating a new key does not add credits.";
+  } else if (/session.limit|concurrent/i.test(`${code} ${message}`)) {
+    detail += " Close other Lucy sessions before reconnecting.";
+  }
+  setTryonStatus(stage, detail, "error");
 }
 
 function setBusy(busy) {
@@ -178,20 +212,29 @@ async function composeOutfitReference() {
 }
 
 async function applyLucyLook() {
-  if (!state.cameraStream) { showToast("Outfit selected. Open the camera to try it on."); return; }
-  if (!state.lucyClient) { showToast("Outfit updated. Add your Lucy API key to enable virtual try-on."); return; }
+  if (!state.cameraStream) {
+    setTryonStatus("Outfit selected · camera is off", "Open the camera to begin virtual try-on.");
+    showToast("Outfit selected. Open the camera to try it on."); return;
+  }
+  if (!state.lucyClient) {
+    if (elements.tryonStatus.dataset.kind !== "error") setTryonStatus("Camera preview only", "Lucy is not connected. Check your key, then click Open camera to connect.");
+    showToast("Outfit selected, but Lucy is not connected."); return;
+  }
   const reference = await composeOutfitReference();
   const prompt = [state.selected.top?.prompt, state.selected.bottom?.prompt].filter(Boolean).join(" and ");
   try {
     elements.liveLabel.textContent = "LUCY APPLYING";
+    setTryonStatus("Sending outfit to Lucy", "STARTLUX selected the garments. Waiting for Lucy to acknowledge the reference image.");
     await state.lucyClient.set({
       image: reference,
       prompt: `Dress the same person in ${prompt}. Keep the person's identity, face, body shape, pose, camera framing, lighting and background unchanged. Change only the clothing.`
     });
     elements.liveLabel.textContent = "LUCY LIVE";
+    setTryonStatus("Outfit request accepted", "Lucy acknowledged the garment image. This confirms the request, not the visual result. Check the live video.", "success");
     showToast("Lucy is updating your outfit");
   } catch (error) {
     elements.liveLabel.textContent = "LUCY ERROR";
+    reportLucyError(error, "Lucy outfit update failed");
     showToast(`Lucy update failed: ${error.message}`);
   }
 }
@@ -205,6 +248,7 @@ async function startCamera() {
     elements.camera.textContent = "Camera is on";
     elements.systemState.classList.add("online");
     elements.systemState.innerHTML = "<i></i> Camera connected";
+    if (!state.settings.lucyKey) setTryonStatus("Camera preview only · no Lucy key", "Add a Lucy API key in Connection settings to enable virtual try-on.");
     if (state.settings.lucyKey && !state.lucyClient) await connectLucy();
   } catch (error) { showToast(`Could not open the camera: ${error.message}`); }
 }
@@ -212,6 +256,7 @@ async function startCamera() {
 async function connectLucy() {
   try {
     elements.liveLabel.textContent = "LUCY CONNECTING";
+    setTryonStatus("Connecting to Lucy VTON 3.5", "The camera preview is not a try-on result. Waiting for the Lucy video connection.");
     elements.outputVideo.style.display = "none";
     elements.outputVideo.srcObject = null;
     const { createDecartClient, models } = await import("https://esm.sh/@decartai/sdk?bundle");
@@ -225,17 +270,30 @@ async function connectLucy() {
         elements.outputVideo.style.display = "block";
         elements.inputVideo.style.display = "none";
         elements.liveLabel.textContent = "LUCY LIVE";
+        setTryonStatus("Lucy video stream received", "A remote stream is attached. Waiting for video playback; select an outfit to send its reference image.");
       }
     });
+    state.lucyClient.on("error", error => reportLucyError(error, "Lucy reported an error"));
+    state.lucyClient.on("connectionChange", connection => {
+      if (connection === "disconnected") setTryonStatus("Lucy disconnected", "The camera preview or last frame may still be visible. Lucy is not receiving new outfits.", "error");
+      else if (connection === "reconnecting") setTryonStatus("Lucy reconnecting", "The video connection was interrupted. Waiting for the service to reconnect.");
+    });
+    state.lucyClient.on("sessionEnded", event => reportLucyError(event, "Lucy session ended"));
     if (state.selected.top || state.selected.bottom) await applyLucyLook();
   } catch (error) {
     state.lucyClient = null;
     elements.inputVideo.style.display = "block";
     elements.outputVideo.style.display = "none";
     elements.liveLabel.textContent = "CAMERA PREVIEW";
+    reportLucyError(error, "Lucy connection failed · camera preview only");
     showToast(`Lucy connection failed: ${error.message}`);
   }
 }
+
+elements.outputVideo.addEventListener("playing", () => {
+  if (elements.tryonStatus.dataset.kind !== "error") setTryonStatus("Lucy video is playing", "The remote video is playing. A selected garment still needs a successful outfit update.", "success");
+});
+elements.outputVideo.addEventListener("error", () => reportLucyError(new Error("The browser could not play the remote video."), "Lucy video playback failed"));
 
 function setupVoice() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;

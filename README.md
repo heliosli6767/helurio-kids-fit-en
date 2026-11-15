@@ -2,7 +2,7 @@
 
 English edition of [HELURIO Kids Fit Studio](https://github.com/heliosli6767/helurio-kids-fit), prepared for a WAICY project demonstration.
 
-The original ten garment images, layout and try-on flow are retained. All interface labels, garment names, instructions, status messages and speech input are in English.
+The original ten garment images and try-on flow are retained. The wardrobe now has 16 pieces, including striped, star-print, dinosaur-print, denim and gingham options. All interface labels, garment names, instructions, status messages and speech input are in English. Larger labels wrap to show the complete garment names.
 
 ## Website
 
@@ -22,6 +22,8 @@ Example commands:
 - “Put on a yellow T-shirt.”
 - “Change to black pants.”
 - “Give me a red top and green pants.”
+- “Put on the lavender star T-shirt.”
+- “Change to beige check pants.”
 
 Listening continues until the microphone is clicked again. Browser recognition uses `en-US`; the optional local transcription fallback requests English (`en`).
 
@@ -63,3 +65,13 @@ Browser speech recognition is preferred. If unavailable, configure a local OpenA
 - StartLux, its weights and Decart have their own licenses and terms. Check these before commercial use.
 
 The Chinese edition remains a separate project. This repository contains the English implementation and identical garment images.
+
+## Lucy diagnostics
+
+Garment selection and virtual try-on are separate steps. A checkmark confirms the local model's choice; it does not confirm a Lucy connection or a rendered outfit.
+
+The status below the camera preserves the latest Lucy connection or outfit-update error, including authentication errors, insufficient credits, session limits and video playback problems. `Outfit request accepted` means Lucy acknowledged the reference image, not that the visual result has been verified. Camera preview alone does not prove Lucy is connected.
+
+The image request remains `realtimeClient.set({ image, prompt })`, which is supported by the official SDK. No key is sent to StartLux. Real Lucy verification requires the user's key, account credits, camera stream and a working realtime connection.
+
+New assets were generated with the built-in image generation tool. See [asset prompts](./ASSET_PROMPTS.md) for the exact prompts and file paths.

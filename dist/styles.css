@@ -37,7 +37,7 @@ button { cursor: pointer; }
 .icon-button { width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: #e8e8ed; color: var(--text); }
 .icon-button:hover { background: #dedee3; }
 .icon-button svg { width: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; }
-.workspace { max-width: 1580px; margin: auto; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(470px, .88fr); gap: 18px; }
+.workspace { max-width: 1760px; margin: auto; display: grid; grid-template-columns: minmax(0, .95fr) minmax(540px, 1.05fr); gap: 22px; align-items: start; }
 .studio-panel, .wardrobe-panel { min-width: 0; background: var(--surface); border-radius: var(--radius); }
 .studio-panel { padding: 26px; }
 .wardrobe-panel { align-self: start; padding: 26px; display: flex; flex-direction: column; }
@@ -76,21 +76,27 @@ h2 { font-size: clamp(1.65rem, 2.5vw, 2.5rem); font-weight: 650; }
 .voice-copy span { display: block; margin-top: 2px; color: var(--muted); font-size: .72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .send-button { padding-inline: 18px; }
 .startlux-badge { padding: 7px 10px; font-size: .66rem; font-weight: 600; letter-spacing: .04em; }
-.catalog-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-content: start; }
-.garment-card { position: relative; min-width: 0; padding: 8px; border: 0; border-radius: 15px; background: var(--surface-soft); color: var(--text); text-align: left; transition: transform .2s, background .2s, box-shadow .2s; }
+.catalog-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-content: start; }
+.garment-card { position: relative; min-width: 0; padding: 14px 12px 12px; border: 0; border-radius: 15px; background: var(--surface-soft); color: var(--text); text-align: left; transition: transform .2s, background .2s, box-shadow .2s; }
 .garment-card:hover { transform: translateY(-2px); background: #e8e8ed; }
 .garment-card.selected { background: white; box-shadow: 0 0 0 2px var(--blue), 0 8px 24px rgba(0,0,0,.08); }
 .garment-card img { width: 100%; aspect-ratio: 1; display: block; object-fit: contain; filter: drop-shadow(0 7px 6px rgba(0,0,0,.08)); }
-.garment-card strong { display: block; margin-top: 4px; font-size: .67rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.garment-card small { display: none; }
-.item-id { position: absolute; top: 7px; left: 7px; z-index: 1; color: var(--muted); font-size: .5rem; font-weight: 600; letter-spacing: .02em; }
+.garment-card strong { display: block; margin-top: 8px; min-height: 2.6em; font-size: 1rem; line-height: 1.3; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.garment-card small { display: block; margin-top: 5px; color: var(--muted); font-size: .875rem; line-height: 1.4; }
+.item-id { position: absolute; top: 8px; left: 10px; z-index: 1; color: var(--muted); font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
 .checkmark { position: absolute; z-index: 1; right: 6px; top: 6px; width: 19px; height: 19px; border-radius: 50%; background: var(--blue); color: white; display: none; place-items: center; font-size: .62rem; }
 .garment-card.selected .checkmark { display: grid; }
 .decision-strip { margin-top: auto; padding: 15px 4px 2px; display: flex; gap: 10px; align-items: center; }
 .decision-icon { flex: 0 0 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--text); color: white; font-size: .8rem; font-weight: 650; }
 .decision-strip strong, .decision-strip span { display: block; }
-.decision-strip strong { font-size: .8rem; font-weight: 600; }
-.decision-strip span { margin-top: 2px; color: var(--muted); font-size: .7rem; }
+.decision-strip strong { font-size: 1rem; font-weight: 600; }
+.decision-strip span { margin-top: 4px; color: var(--muted); font-size: .875rem; line-height: 1.45; overflow-wrap: anywhere; }
+.tryon-status { margin-top: 14px; padding: 13px 15px; border-radius: 14px; background: var(--surface-soft); }
+.tryon-status strong { display: block; font-size: 1rem; line-height: 1.4; }
+.tryon-status p { margin: 5px 0 0; color: var(--muted); font-size: .875rem; line-height: 1.5; overflow-wrap: anywhere; }
+.tryon-status[data-kind="error"] { background: #fff1f0; }
+.tryon-status[data-kind="error"] strong { color: #a31721; }
+.tryon-status[data-kind="success"] strong { color: #246341; }
 dialog { width: min(520px, calc(100% - 28px)); padding: 0; border: 0; border-radius: 24px; background: rgba(255,255,255,.96); color: var(--text); box-shadow: 0 28px 85px rgba(0,0,0,.24); }
 dialog::backdrop { background: rgba(0,0,0,.35); backdrop-filter: blur(12px); }
 .settings-card { padding: 25px; }
@@ -106,7 +112,7 @@ dialog::backdrop { background: rgba(0,0,0,.35); backdrop-filter: blur(12px); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 12px rgba(215,0,21,.12); } }
 @media (max-width: 1120px) {
   .workspace { grid-template-columns: 1fr; }
-  .catalog-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .catalog-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .decision-strip { margin-top: 16px; }
 }
 @media (max-width: 640px) {
@@ -123,7 +129,7 @@ dialog::backdrop { background: rgba(0,0,0,.35); backdrop-filter: blur(12px); }
   .send-button { padding-inline: 12px; }
   .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .garment-card { padding: 10px; }
-  .garment-card strong { font-size: .8rem; }
+  .garment-card strong { font-size: 1rem; }
   .look-summary { display: block; }
   .look-summary strong { display: block; margin-top: 3px; text-align: left; }
 }
