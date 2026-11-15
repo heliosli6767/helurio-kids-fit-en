@@ -22,7 +22,9 @@ const state = {
   selected: { top: null, bottom: null },
   lastChangedTypes: [],
   cameraStream: null,
+  cameraStarting: false,
   lucyClient: null,
+  lucyConnectAttempt: 0,
   recognition: null,
   recognitionRunning: false,
   voiceActive: false,
@@ -78,6 +80,13 @@ function setTryonStatus(title, detail, kind = "info") {
   elements.tryonTitle.textContent = title;
   elements.tryonDetail.textContent = detail;
   elements.tryonStatus.dataset.kind = kind;
+}
+
+function setCameraButton(isOn) {
+  elements.camera.setAttribute("aria-pressed", String(isOn));
+  elements.camera.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 10l4.5-2.5v9L15 14M5 6h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/></svg>
+    ${isOn ? "Turn camera off" : "Open camera"}`;
 }
 
 function safeLucyError(error) {
@@ -287,20 +296,57 @@ async function applyLucyLook(changedTypes = state.lastChangedTypes) {
 }
 
 async function startCamera() {
+  if (state.cameraStream || state.cameraStarting) return;
+  state.cameraStarting = true;
   try {
-    if (!state.cameraStream) state.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    state.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     elements.inputVideo.srcObject = state.cameraStream;
     elements.inputVideo.style.display = "block";
     elements.cameraEmpty.style.display = "none";
-    elements.camera.textContent = "Camera is on";
+    setCameraButton(true);
     elements.systemState.classList.add("online");
     elements.systemState.innerHTML = "<i></i> Camera connected";
     if (!state.settings.lucyKey) setTryonStatus("Camera preview only · no Lucy key", "Add a Lucy API key in Connection settings to enable virtual try-on.");
     if (state.settings.lucyKey && !state.lucyClient) await connectLucy();
-  } catch (error) { showToast(`Could not open the camera: ${error.message}`); }
+  } catch (error) {
+    state.cameraStream = null;
+    setCameraButton(false);
+    showToast(`Could not open the camera: ${error.message}`);
+  } finally {
+    state.cameraStarting = false;
+  }
+}
+
+function stopCamera() {
+  state.lucyConnectAttempt += 1;
+  const lucyClient = state.lucyClient;
+  state.lucyClient = null;
+  lucyClient?.disconnect?.();
+  state.cameraStream?.getTracks().forEach(track => track.stop());
+  state.cameraStream = null;
+  elements.inputVideo.pause();
+  elements.outputVideo.pause();
+  elements.inputVideo.srcObject = null;
+  elements.outputVideo.srcObject = null;
+  elements.inputVideo.style.display = "none";
+  elements.outputVideo.style.display = "none";
+  elements.cameraEmpty.style.display = "";
+  elements.liveLabel.textContent = "PREVIEW";
+  elements.systemState.classList.remove("online");
+  elements.systemState.innerHTML = "<i></i> Ready";
+  setCameraButton(false);
+  setTryonStatus("Camera is off", "Open the camera when you are ready to start another Lucy session.");
+  showToast("Camera and Lucy session stopped");
+}
+
+function toggleCamera() {
+  if (state.cameraStream) stopCamera();
+  else startCamera();
 }
 
 async function connectLucy() {
+  const connectAttempt = ++state.lucyConnectAttempt;
+  const cameraStream = state.cameraStream;
   try {
     elements.liveLabel.textContent = "LUCY CONNECTING";
     setTryonStatus("Connecting to Lucy VTON 3.5", "The camera preview is not a try-on result. Waiting for the Lucy video connection.");
@@ -309,10 +355,11 @@ async function connectLucy() {
     const { createDecartClient, models } = await import("https://esm.sh/@decartai/sdk?bundle");
     const model = models.realtime("lucy-vton-3.5");
     const client = createDecartClient({ apiKey: state.settings.lucyKey });
-    state.lucyClient = await client.realtime.connect(state.cameraStream, {
+    const lucyClient = await client.realtime.connect(cameraStream, {
       model,
       mirror: "auto",
       onRemoteStream: (stream) => {
+        if (connectAttempt !== state.lucyConnectAttempt || state.cameraStream !== cameraStream) return;
         elements.outputVideo.srcObject = stream;
         elements.outputVideo.style.display = "block";
         elements.inputVideo.style.display = "none";
@@ -320,14 +367,20 @@ async function connectLucy() {
         setTryonStatus("Lucy video stream received", "A remote stream is attached. Waiting for video playback; select an outfit to send its reference image.");
       }
     });
-    state.lucyClient.on("error", error => reportLucyError(error, "Lucy reported an error"));
-    state.lucyClient.on("connectionChange", connection => {
+    if (connectAttempt !== state.lucyConnectAttempt || state.cameraStream !== cameraStream) {
+      lucyClient.disconnect?.();
+      return;
+    }
+    state.lucyClient = lucyClient;
+    lucyClient.on("error", error => reportLucyError(error, "Lucy reported an error"));
+    lucyClient.on("connectionChange", connection => {
       if (connection === "disconnected") setTryonStatus("Lucy disconnected", "The camera preview or last frame may still be visible. Lucy is not receiving new outfits.", "error");
       else if (connection === "reconnecting") setTryonStatus("Lucy reconnecting", "The video connection was interrupted. Waiting for the service to reconnect.");
     });
-    state.lucyClient.on("sessionEnded", event => reportLucyError(event, "Lucy session ended"));
+    lucyClient.on("sessionEnded", event => reportLucyError(event, "Lucy session ended"));
     if (state.selected.top || state.selected.bottom) await applyLucyLook();
   } catch (error) {
+    if (connectAttempt !== state.lucyConnectAttempt || !state.cameraStream) return;
     state.lucyClient = null;
     elements.inputVideo.style.display = "block";
     elements.outputVideo.style.display = "none";
@@ -503,7 +556,7 @@ async function transcribeRecording() {
 elements.send.addEventListener("click", () => queueStartluxCommand(elements.input.value));
 elements.input.addEventListener("keydown", event => { if (event.key === "Enter") queueStartluxCommand(elements.input.value); });
 elements.mic.addEventListener("click", startVoiceInput);
-elements.camera.addEventListener("click", startCamera);
+elements.camera.addEventListener("click", toggleCamera);
 elements.settingsButton.addEventListener("click", () => {
   elements.endpoint.value = state.settings.startluxEndpoint;
   elements.model.value = state.settings.startluxModel;
@@ -519,8 +572,9 @@ elements.settingsForm.addEventListener("submit", event => {
   Object.entries(state.settings).forEach(([key, value]) => sessionStorage.setItem(key, value));
   elements.settingsDialog.close();
   showToast("Connection settings saved");
-  if (previousLucyKey !== state.settings.lucyKey && state.lucyClient) {
-    state.lucyClient.disconnect?.();
+  if (previousLucyKey !== state.settings.lucyKey) {
+    state.lucyConnectAttempt += 1;
+    state.lucyClient?.disconnect?.();
     state.lucyClient = null;
   }
   if (state.cameraStream && state.settings.lucyKey && !state.lucyClient) connectLucy();
