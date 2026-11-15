@@ -20,6 +20,7 @@ const wardrobe = [
 const state = {
   filter: "all",
   selected: { top: null, bottom: null },
+  lastChangedTypes: [],
   cameraStream: null,
   lucyClient: null,
   recognition: null,
@@ -142,11 +143,12 @@ async function selectItems(ids, source = "STARTLUX") {
   const selected = ids.map(id => wardrobe.find(item => item.id === id)).filter(Boolean);
   if (!selected.length) throw new Error("STARTLUX did not return a valid garment label");
   selected.forEach(item => { state.selected[item.type] = item; });
+  state.lastChangedTypes = [...new Set(selected.map(item => item.type))];
   renderWardrobe();
   elements.lookText.textContent = currentLookText();
   elements.decisionTitle.textContent = `${source} selected ${selected.map(i => i.id).join(" · ")}`;
   elements.decisionDetail.textContent = selected.map(i => i.name).join(" + ");
-  await applyLucyLook();
+  await applyLucyLook(state.lastChangedTypes);
 }
 
 function readDecisionLabel(result, key) {
@@ -167,18 +169,40 @@ async function decideWithStartlux(command) {
     model: state.settings.startluxModel,
     state: JSON.stringify({ user_request: command, current_top: state.selected.top?.id || null, current_bottom: state.selected.bottom?.id || null, language: "en-US" }),
     questions: {
-      top: { type: "choice", instructions: "Choose the kids top that best matches the user request. If the user did not request a change of top, choose NO_CHANGE.", criteria: tops },
-      bottom: { type: "choice", instructions: "Choose the kids pants that best match the user request. If the user did not request a change of pants, choose NO_CHANGE.", criteria: bottoms }
+      scope: {
+        type: "choice",
+        instructions: "Choose ONLY the clothing region explicitly requested by the user. Never infer a matching outfit from a color. 'Try yellow T-shirt' means TOP_ONLY; 'try yellow pants' means BOTTOM_ONLY. Use BOTH only for an explicit request for both regions or a whole outfit.",
+        criteria: {
+          TOP_ONLY: "Only a top, T-shirt, shirt, jacket or other upper-body garment was requested. Pants must not change.",
+          BOTTOM_ONLY: "Only pants, jeans, trousers, shorts or other lower-body clothing was requested. The top must not change.",
+          BOTH: "The user explicitly requested both a top and pants, or asked to replace the whole outfit.",
+          NO_CHANGE: "No clothing change was requested, or the clothing region is unspecified."
+        }
+      },
+      top: { type: "choice", instructions: "Choose the kids top that best matches the request. If a top or a whole outfit was not explicitly requested, choose NO_CHANGE. Do not create a matching outfit.", criteria: tops },
+      bottom: { type: "choice", instructions: "Choose pants ONLY when the user explicitly requests pants, jeans, trousers, shorts or a whole outfit. A T-shirt request, even with a color, MUST return NO_CHANGE for pants. Never infer matching pants from the top color.", criteria: bottoms }
     }
   };
   try {
     const response = await fetch(state.settings.startluxEndpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json();
-    const ids = [readDecisionLabel(result, "top"), readDecisionLabel(result, "bottom")].filter(id => id && id !== "NO_CHANGE");
-    if (!ids.length) throw new Error("No clothing changes requested");
+    const scope = readDecisionLabel(result, "scope");
+    const regions = { TOP_ONLY: ["top"], BOTTOM_ONLY: ["bottom"], BOTH: ["top", "bottom"], NO_CHANGE: [] };
+    if (!Object.hasOwn(regions, scope)) throw new Error("STARTLUX did not return a valid clothing region");
+    const ids = regions[scope].map(type => {
+      const id = readDecisionLabel(result, type);
+      return wardrobe.find(item => item.id === id && item.type === type)?.id;
+    }).filter(Boolean);
+    if (!ids.length) {
+      state.lastDecision = { ok: true, ids: [], scope };
+      elements.decisionTitle.textContent = "No clothing changes requested";
+      elements.decisionDetail.textContent = "Say which top or pants you would like to change.";
+      elements.voiceHint.textContent = state.voiceActive ? "No outfit change · Still listening" : "No outfit change";
+      return;
+    }
     await selectItems(ids);
-    state.lastDecision = { ok: true, ids };
+    state.lastDecision = { ok: true, ids, scope };
     elements.voiceHint.textContent = state.voiceActive ? `Applied: “${command}” · Still listening` : `Recognized: “${command}”`;
   } catch (error) {
     const message = friendlyFetchError(error, state.settings.startluxEndpoint, "STARTLUX");
@@ -194,24 +218,46 @@ async function composeOutfitReference() {
   const selected = [state.selected.top, state.selected.bottom].filter(Boolean);
   if (!selected.length) return null;
   const canvas = document.createElement("canvas");
-  canvas.width = 1024; canvas.height = 1024;
+  canvas.width = 1024; canvas.height = selected.length === 2 ? 1536 : 1024;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#f5f7fb"; ctx.fillRect(0, 0, canvas.width, canvas.height);
   const images = await Promise.all(selected.map(item => new Promise((resolve, reject) => {
     const image = new Image(); image.onload = () => resolve({ image, item }); image.onerror = reject; image.src = item.image;
   })));
-  const width = selected.length === 1 ? 650 : 470;
-  images.forEach(({ image }, index) => {
-    const scale = Math.min(width / image.width, 820 / image.height);
+  images.forEach(({ image, item }) => {
+    const slot = selected.length === 1 ? { y: 0, height: 1024 } : item.type === "top" ? { y: 0, height: 640 } : { y: 640, height: 896 };
+    const scale = Math.min(850 / image.width, (slot.height - 32) / image.height);
     const w = image.width * scale, h = image.height * scale;
-    const x = selected.length === 1 ? (1024 - w) / 2 : index * 512 + (512 - w) / 2;
-    ctx.drawImage(image, x, (1024 - h) / 2, w, h);
+    ctx.drawImage(image, (1024 - w) / 2, slot.y + (slot.height - h) / 2, w, h);
   });
   const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
   return new File([blob], "startlux-outfit.png", { type: "image/png" });
 }
 
-async function applyLucyLook() {
+function buildLucyOutfitPrompt(changedTypes = state.lastChangedTypes) {
+  const topChanged = changedTypes.includes("top");
+  const bottomChanged = changedTypes.includes("bottom");
+  const instructions = [];
+  if (topChanged && state.selected.top) instructions.push(`Substitute only the current top with ${state.selected.top.prompt}. Apply the top reference only to the upper body.`);
+  if (bottomChanged && state.selected.bottom) instructions.push(`Substitute only the current pants with ${state.selected.bottom.prompt}. Apply the pants reference only to the lower body.`);
+  if (!bottomChanged) {
+    instructions.push(state.selected.bottom
+      ? `Keep the previously selected ${state.selected.bottom.prompt} exactly unchanged, including color and pattern.`
+      : "Keep the person's existing pants, shorts or skirt exactly unchanged, including the original color, pattern, material and shape.");
+    instructions.push("Do not recolor the pants to match the top. Do not extend the top's color or pattern onto the lower body.");
+  }
+  if (!topChanged) {
+    instructions.push(state.selected.top
+      ? `Keep the previously selected ${state.selected.top.prompt} exactly unchanged, including color and pattern.`
+      : "Keep the person's existing top exactly unchanged, including the original color, pattern, material and shape.");
+    instructions.push("Do not recolor the top to match the pants. Do not extend the pants' color or pattern onto the upper body.");
+  }
+  if (topChanged && bottomChanged) instructions.push("Treat the top and pants as separate garments. Keep each garment's specified color and pattern independent; do not create a single-color matching set unless both references specify it.");
+  instructions.push("Preserve the same person's identity, face, body shape, pose, camera framing, lighting and background. Change only the explicitly requested garment regions.");
+  return instructions.join(" ");
+}
+
+async function applyLucyLook(changedTypes = state.lastChangedTypes) {
   if (!state.cameraStream) {
     setTryonStatus("Outfit selected · camera is off", "Open the camera to begin virtual try-on.");
     showToast("Outfit selected. Open the camera to try it on."); return;
@@ -221,13 +267,14 @@ async function applyLucyLook() {
     showToast("Outfit selected, but Lucy is not connected."); return;
   }
   const reference = await composeOutfitReference();
-  const prompt = [state.selected.top?.prompt, state.selected.bottom?.prompt].filter(Boolean).join(" and ");
+  const prompt = buildLucyOutfitPrompt(changedTypes);
   try {
     elements.liveLabel.textContent = "LUCY APPLYING";
     setTryonStatus("Sending outfit to Lucy", "STARTLUX selected the garments. Waiting for Lucy to acknowledge the reference image.");
     await state.lucyClient.set({
       image: reference,
-      prompt: `Dress the same person in ${prompt}. Keep the person's identity, face, body shape, pose, camera framing, lighting and background unchanged. Change only the clothing.`
+      prompt,
+      enhance: false
     });
     elements.liveLabel.textContent = "LUCY LIVE";
     setTryonStatus("Outfit request accepted", "Lucy acknowledged the garment image. This confirms the request, not the visual result. Check the live video.", "success");

@@ -2,7 +2,7 @@
 
 English edition of [HELURIO Kids Fit Studio](https://github.com/heliosli6767/helurio-kids-fit), prepared for a WAICY project demonstration.
 
-The original ten garment images and try-on flow are retained. The wardrobe now has 16 pieces, including striped, star-print, dinosaur-print, denim and gingham options. All interface labels, garment names, instructions, status messages and speech input are in English. Larger labels wrap to show the complete garment names.
+The original ten garment images and try-on connection flow are retained. The wardrobe has 16 pieces, including striped, star-print, dinosaur-print, denim and gingham options. All interface labels, garment names, instructions, status messages and speech input are in English. The desktop layout allocates 60% to the camera and 40% to a compact, viewport-height-aware 4×4 wardrobe. Garment names wrap; supplementary descriptions are hidden to keep all 16 pieces on screen.
 
 ## Website
 
@@ -26,6 +26,12 @@ Example commands:
 - “Change to beige check pants.”
 
 Listening continues until the microphone is clicked again. Browser recognition uses `en-US`; the optional local transcription fallback requests English (`en`).
+
+## Change only the requested garment
+
+StartLux answers an explicit clothing-region question (`TOP_ONLY`, `BOTTOM_ONLY`, `BOTH`, or `NO_CHANGE`) as well as the garment choices. The page filters out choices outside that region, so a top-only request cannot update the stored pants selection, and vice versa. All request interpretation still runs through the local StartLux model.
+
+Lucy receives a region-specific substitute prompt that explicitly preserves the opposite garment and its colors and patterns. Prompt enhancement is disabled to avoid expanding a single-garment request into a matching outfit. When both garments have been selected, their reference is composed vertically (top above pants), retaining the previous selection as context. Lucy renders generative video; payload and selection tests do not guarantee pixel-level preservation in every frame.
 
 ## Run locally
 
